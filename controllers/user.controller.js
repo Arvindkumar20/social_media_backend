@@ -29,10 +29,11 @@ export const register = async (req, res) => {
             });
         }
     }
-    let image = result ? {
-        url: result?.secure_url,
-        public_id: result?.public_id
-    } : {};
+    if (!result) {
+        return res.json({
+            message: "image not uploaded"
+        });
+    }
 
     let userExist;
     try {
@@ -57,7 +58,10 @@ export const register = async (req, res) => {
     try {
         user = await User.create({
             name, email, password: hashedPassword,
-            image: image
+            image: {
+                url: result?.secure_url,
+                public_id: result?.public_id
+            }
         });
 
     } catch (error) {
@@ -140,7 +144,7 @@ export const login = async (req, res) => {
             message: "token not generated"
         });
     }
-   
+
     return res.json({
         message: "user logged in successfully",
         token
@@ -148,3 +152,87 @@ export const login = async (req, res) => {
 
 
 }
+
+
+
+export const getUser = async (req, res) => {
+    try {
+        const userId = req.user // Assume userId is set in auth middleware
+
+        const user = await User.findById(userId)
+            .populate("friends", "name image.url") // populate only needed fields
+            .populate("posts", "_id") // just for count or you can skip populate
+            .populate("comments", "_id"); // same here
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({
+            name: user.name,
+            email: user.email,
+            image: user.image,
+            friends: user.friends,
+            posts: user.posts,
+            comments: user.comments,
+            // Add these if you added to schema:
+            // location: user.location,
+            // occupation: user.occupation,
+            // profileViews: user.profileViews,
+            // postImpressions: user.postImpressions,
+        });
+    } catch (error) {
+        console.error("Error fetching user:", error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+
+
+
+export const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user; // set by auth middleware
+        const { name, email, password, location } = req.body;
+        const file = req.file;
+
+        const updatedData = { name, email, location };
+
+        // Handle new profile image upload
+        if (file) {
+            const result = await cloudinary.uploader.upload(file.path, {
+                folder: "profile",
+            });
+
+            updatedData.image = {
+                url: result.secure_url,
+                public_id: result.public_id,
+            };
+
+            // Optional: delete old image if exists
+            const existingUser = await User.findById(userId);
+            if (existingUser?.image?.public_id) {
+                await cloudinary.uploader.destroy(existingUser.image.public_id);
+            }
+        }
+
+        // Hash new password if provided
+        if (password) {
+            updatedData.password = await bcrypt.hash(password, 10);
+        }
+
+        const user = await User.findByIdAndUpdate(userId, updatedData, {
+            new: true,
+        });
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        res.status(200).json({ message: "Profile updated", user });
+    } catch (error) {
+        console.error("Update profile error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+};
+
+
