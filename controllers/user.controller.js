@@ -98,60 +98,45 @@ export const register = async (req, res) => {
 
 
 export const login = async (req, res) => {
-    const { email, password } = req.body;
-    if (checkEmpty(email, password)) {
-        return res.json({
-            message: "all fields are required"
-        });
-    }
+  const { email, password } = req.body;
 
-    let user;
-    try {
-        user = await User.findOne({ email: email });
-    } catch (error) {
-        return res.json({
-            message: "server error",
-            error: error.message
-        })
-    }
+  if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
 
+  try {
+    const user = await User.findOne({ email }).select("+password"); // include password
     if (!user) {
-        return res.json({
-            message: "user not registered",
-            email
-        });
+      return res.status(401).json({ message: "User not registered" });
     }
 
-    let isMatchedPassword;
-    try {
-        isMatchedPassword = await bcrypt.compare(password, user.password);
-    } catch (error) {
-        return res.json({
-            message: "server error",
-            error: error.message
-        })
-    }
-
+    const isMatchedPassword = await bcrypt.compare(password, user.password);
     if (!isMatchedPassword) {
-        return res.json({
-            message: "Check your password please"
-        });
+      return res.status(401).json({ message: "Invalid password" });
     }
 
-    let token = await generateToken(user._id);
-    if (!token) {
-        return res.json({
-            message: "token not generated"
-        });
-    }
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || "gyuegrugverqugvreygfrygvegyyguygtytdd",
+      { expiresIn: "7d" }
+    );
 
-    return res.json({
-        message: "user logged in successfully",
-        token
+    return res.status(200).json({
+      message: "User logged in successfully",
+      token,
+      userId: user._id,
     });
 
+  } catch (error) {
+    console.error("Login error:", error.message);
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
 
-}
+
 
 
 
