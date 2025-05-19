@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 // Correct CORS setup for credentials & specific origins
 app.use(
   cors({
-    origin: "https://capable-cat-daea0f.netlify.app/",  // Your frontend URL here
+    origin: "https://capable-cat-daea0f.netlify.app",  // Your frontend URL here
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,                // Required to allow cookies, sessions
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
